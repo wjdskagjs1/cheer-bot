@@ -1,7 +1,5 @@
 const Discord = require('discord.js');
 const client = new Discord.Client({ partials: ['MESSAGE', 'CHANNEL', 'REACTION'] });
-const fs = require('fs');
-const article = fs.readFile("README.md").toString();
 
 let replies = require("./replies.json");
 
@@ -22,10 +20,6 @@ client.on('message', msg => {
     const {content, channel, author} = msg;
 
     if(channel.name !== '격려-봇' || author.bot ){
-        return;
-    }
-    if(content.includes('도움말')){
-        channel.send("\`\`\`"+article+"\`\`\`");
         return;
     }
 
