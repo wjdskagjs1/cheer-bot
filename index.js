@@ -164,6 +164,9 @@ discordClient.on('message', msg => {
         if(err){
             console.log(err);
         }else{
+            if(data === null){
+                return;
+            }
             const { channels } = data.setting;
             if(channels.includes(channel.name) || channels.includes('*')){
                 if(content.includes('도움말')){
