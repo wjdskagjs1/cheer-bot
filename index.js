@@ -73,7 +73,7 @@ discordClient.on('message', msg => {
                     const newSetting = new Setting({
                         bot_id: bot_id,
                         ownerID: guild.ownerID,
-                        owner_name: guild.owner.nickname,
+                        owner_name: guild.owner.user.tag,
                         guild_id: guild.id,
                         guild_name: guild.name,
                         channel: newChannel,
