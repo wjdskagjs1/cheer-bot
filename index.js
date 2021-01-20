@@ -3,9 +3,9 @@ const discordClient = new Discord.Client();
 const {
     TOKEN,
     mongouri
-} = process.env; //require('./config.json');
+} = require('./config.json');
 const fs = require('fs');
-const article = fs.readFileSync("README.md").toString();
+const article = fs.readFileSync("README.txt").toString();
 
 const mongoose = require('mongoose');
 
@@ -22,87 +22,22 @@ mongoose.connect(mongouri, connectionParams)
     console.error(`Error connecting to the database. \n${err}`);
 });
 
-// 6. Schema 생성. (혹시 스키마에 대한 개념이 없다면, 입력될 데이터의 타입이 정의된 DB 설계도 라고 생각하면 됩니다.)
-var user = mongoose.Schema({
-    bot_id: String,
-    userid: String,
-    usercode: String,
-    username: String,
-    guild_id: String,
-    guild_name: String,
-    start_date: String,
-    end_date: String,
-    trial: Boolean,
-    enable: Boolean,
-    billing_info: Array,
-    setting: {
-        channels: Array
-    }
-});
-
-// 7. 정의된 스키마를 객체처럼 사용할 수 있도록 model() 함수로 컴파일
-const User = mongoose.model('user', user);
-
-const dates = {
-    convert:function(d) {
-        // Converts the date in d to a date-object. The input can be:
-        //   a date object: returned without modification
-        //  an array      : Interpreted as [year,month,day]. NOTE: month is 0-11.
-        //   a number     : Interpreted as number of milliseconds
-        //                  since 1 Jan 1970 (a timestamp) 
-        //   a string     : Any format supported by the javascript engine, like
-        //                  "YYYY/MM/DD", "MM/DD/YYYY", "Jan 31 2009" etc.
-        //  an object     : Interpreted as an object with year, month and date
-        //                  attributes.  **NOTE** month is 0-11.
-        return (
-            d.constructor === Date ? d :
-            d.constructor === Array ? new Date(d[0],d[1],d[2]) :
-            d.constructor === Number ? new Date(d) :
-            d.constructor === String ? new Date(d) :
-            typeof d === "object" ? new Date(d.year,d.month,d.date) :
-            NaN
-        );
-    },
-    compare:function(a,b) {
-        // Compare two dates (could be of any type supported by the convert
-        // function above) and returns:
-        //  -1 : if a < b
-        //   0 : if a = b
-        //   1 : if a > b
-        // NaN : if a or b is an illegal date
-        // NOTE: The code inside isFinite does an assignment (=).
-        return (
-            isFinite(a=this.convert(a).valueOf()) &&
-            isFinite(b=this.convert(b).valueOf()) ?
-            (a>b)-(a<b) :
-            NaN
-        );
-    },
-    inRange:function(d,start,end) {
-        // Checks if date in d is between dates in start and end.
-        // Returns a boolean or NaN:
-        //    true  : if d is between start and end (inclusive)
-        //    false : if d is before start or after end
-        //    NaN   : if one or more of the dates is illegal.
-        // NOTE: The code inside isFinite does an assignment (=).
-       return (
-            isFinite(d=this.convert(d).valueOf()) &&
-            isFinite(start=this.convert(start).valueOf()) &&
-            isFinite(end=this.convert(end).valueOf()) ?
-            start <= d && d <= end :
-            NaN
-        );
-    }
-}
-Date.prototype.addDays = function(days) {
-    var date = new Date(this.valueOf());
-    date.setDate(date.getDate() + days);
-    return date;
-}
-
 const replies = require('./replies.json');
 const bot_id = 1;
 const bot_name = '격려 봇';
+
+// 6. Schema 생성. (혹시 스키마에 대한 개념이 없다면, 입력될 데이터의 타입이 정의된 DB 설계도 라고 생각하면 됩니다.)
+var setting = mongoose.Schema({
+    bot_id: Number,
+    ownerID: String,
+    owner_name: String,
+    guild_id: String,
+    guild_name: String,
+    channel: String,
+});
+
+// 7. 정의된 스키마를 객체처럼 사용할 수 있도록 model() 함수로 컴파일
+const Setting = mongoose.model(`bot${bot_id}`, setting);
 
 function getRandomInt(min, max) {
     min = Math.ceil(min);
@@ -113,43 +48,6 @@ const randomMessage = function(msgList){
     return msgList[getRandomInt(0, msgList.length)];
 }
 
-const leave = (guild)=>{
-    if(guild === null){
-        console.log('guild is null');
-        return;
-    }else{
-        User.findOne({bot_id: bot_id, guild_id: guild.id}, async (err, data)=>{
-            if(err){
-                console.log(err);
-            }else{
-                if(data === null){
-                    guild.owner
-                    .send(`${guild.name}에서 ${bot_name}이 비활성화 되었습니다.\n http://bot-market.kro.kr/ 에서 구독 결제 후 다시 초대해주시기 바랍니다.`)
-                    .then((msg)=>{
-                        guild.leave()
-                        .catch(err => {
-                            console.log(`there was an error leaving the guild: \n ${err.message}`);
-                        });
-                    });
-                }else{
-                    const now = new Date();
-                    const { end_date } = data;
-                    if(now > end_date.addDays(1)){
-                        guild.owner
-                        .send(`${guild.name}에서 ${bot_name}이 비활성화 되었습니다.\n http://bot-market.kro.kr/ 에서 구독 결제 후 다시 초대해주시기 바랍니다.`)
-                        .then((msg)=>{
-                            guild.leave()
-                            .catch(err => {
-                                console.log(`there was an error leaving the guild: \n ${err.message}`);
-                            });
-                        });
-                    }
-                }
-            }
-        });
-    }
-};
-
 discordClient.on('ready', () => {
   console.log(`Logged in as ${discordClient.user.tag}!`);
 });
@@ -158,23 +56,58 @@ discordClient.on('message', msg => {
     const { author, channel, guild, content } = msg;
     if(author.bot) return;
 
-    leave(guild);
+    const prefix = '=';
+
+    if(content.includes(`${prefix}도움말`)){
+        channel.send("\`\`\`"+article+"\`\`\`");
+        return;
+    }
     
-    User.findOne({bot_id: bot_id, guild_id: guild.id}, (err, data)=>{
+    Setting.findOne({bot_id: bot_id, guild_id: guild.id}, (err, data)=>{
         if(err){
             console.log(err);
         }else{
             if(data === null){
+                if(content.startsWith(`${prefix}채널 `) && author.id === guild.owner.id){
+                    const newChannel = content.replace(`${prefix}채널 `, '');
+                    const newSetting = new Setting({
+                        bot_id: bot_id,
+                        ownerID: guild.ownerID,
+                        owner_name: guild.owner.nickname,
+                        guild_id: guild.id,
+                        guild_name: guild.name,
+                        channel: newChannel,
+                    });
+                    newSetting.save(function(error, data){
+                        if(error){
+                            console.log(error);
+                            channel.send("저장 안됐어.");
+                        }else{
+                            channel.send("저장 했어.");
+                        }
+                    });
+                }
                 return;
             }
-            const { channels } = data.setting;
-            if(channels.includes(channel.name) || channels.includes('*')){
-                if(content.includes('도움말')){
-                    channel.send("\`\`\`"+article+"\`\`\`");
+            const setting_channel = data.channel;
+            if(setting_channel === channel.name || setting_channel === '*'){
+                if(content.startsWith(`${prefix}채널 `) && author.id === guild.owner.id){
+                    const newChannel = content.replace(`${prefix}채널 `, '');
+                    Setting.updateOne({
+                        bot_id: bot_id,
+                        guild_id: guild.id,
+                    }, { $set: { channel: newChannel } },(err, data)=>{
+                        if(err){
+                            console.log(err);
+                            channel.send("저장 안됐어.");
+                        }else{
+                            channel.send("저장 했어.");
+                        }
+                    });
                     return;
-                }else{
-                    msg.reply(randomMessage(replies));
                 }
+
+                msg.reply(randomMessage(replies));
             }
         }
     });
