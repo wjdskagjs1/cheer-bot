@@ -53,8 +53,10 @@ discordClient.on('ready', () => {
 });
 
 discordClient.on('message', msg => {
-    const { author, channel, guild, content } = msg;
+    const { author, member, channel, guild, content } = msg;
     if(author.bot) return;
+
+    const admin = member.permissions.has("ADMINISTRATOR");
 
     const prefix = '=';
 
@@ -62,18 +64,21 @@ discordClient.on('message', msg => {
         channel.send("\`\`\`"+article+"\`\`\`");
         return;
     }
-    
+    if(content.includes(`${prefix}debugger`)){
+        channel.send('debug : '+admin);
+    }
+
     Setting.findOne({bot_id: bot_id, guild_id: guild.id}, (err, data)=>{
         if(err){
             console.log(err);
         }else{
             if(data === null){
-                if(content.startsWith(`${prefix}채널 `) && author.id === guild.owner.id){
+                if(content.startsWith(`${prefix}채널 `) && admin){
                     const newChannel = content.replace(`${prefix}채널 `, '');
                     const newSetting = new Setting({
                         bot_id: bot_id,
-                        ownerID: guild.ownerID,
-                        owner_name: guild.owner.user.tag,
+                        ownerID: guild.ownerID || '',
+                        owner_name: guild.owner ? guild.owner.user.tag : '',
                         guild_id: guild.id,
                         guild_name: guild.name,
                         channel: newChannel,
@@ -87,11 +92,8 @@ discordClient.on('message', msg => {
                         }
                     });
                 }
-                return;
-            }
-            const setting_channel = data.channel;
-            if(setting_channel === channel.name || setting_channel === '*'){
-                if(content.startsWith(`${prefix}채널 `) && author.id === guild.owner.id){
+            }else{
+                if(content.startsWith(`${prefix}채널 `) && admin){
                     const newChannel = content.replace(`${prefix}채널 `, '');
                     Setting.updateOne({
                         bot_id: bot_id,
@@ -106,7 +108,9 @@ discordClient.on('message', msg => {
                     });
                     return;
                 }
-
+            }
+            const setting_channel = data.channel;
+            if(setting_channel === channel.name || setting_channel === '*'){
                 msg.reply(randomMessage(replies));
             }
         }
